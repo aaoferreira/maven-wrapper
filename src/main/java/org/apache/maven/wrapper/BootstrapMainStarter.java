@@ -16,37 +16,26 @@
 package org.apache.maven.wrapper;
 
 import java.io.File;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
 
 /**
  * @author Hans Dockter
  */
 public class BootstrapMainStarter {
   public void start(String[] args, File mavenHome) throws Exception {
-    File mavenJar = findLauncherJar(mavenHome);
-    URLClassLoader contextClassLoader = new URLClassLoader(new URL[] {
-      mavenJar.toURI().toURL()
-    }, ClassLoader.getSystemClassLoader().getParent());
-    Thread.currentThread().setContextClassLoader(contextClassLoader);
-    Class<?> mainClass = contextClassLoader.loadClass("org.codehaus.plexus.classworlds.launcher.Launcher");
+    final String osName = System.getProperty("os.name");
+    final boolean isWindows = osName != null && osName.startsWith("Windows");
+    final String script = isWindows ? "mvn.cmd" : "mvn";
 
-    System.setProperty("maven.home", mavenHome.getAbsolutePath());
-    System.setProperty("classworlds.conf", new File(mavenHome, "/bin/m2.conf").getAbsolutePath());
+    final File mvnCmd = new File(mavenHome, "bin" + File.separator + script);
 
-    Method mainMethod = mainClass.getMethod("main", String[].class);
-    mainMethod.invoke(null, new Object[] {
-      args
-    });
+    final String[] command = new String[args.length + 1];
+    command[0] = mvnCmd.getAbsolutePath();
+    System.arraycopy(args, 0, command, 1, args.length);
+
+    final Process process =
+        new ProcessBuilder(command)
+            .inheritIO()
+            .start();
+    System.exit(process.waitFor());
   }
-
-  private File findLauncherJar(File mavenHome) {
-    for (File file : new File(mavenHome, "boot").listFiles()) {
-      if (file.getName().matches("plexus-classworlds-.*\\.jar")) {
-        return file;
-      }
-    }
-    throw new RuntimeException(String.format("Could not locate the Maven launcher JAR in Maven distribution '%s'.", mavenHome));
-  }  
 }
